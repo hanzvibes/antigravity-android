@@ -4,7 +4,12 @@
  * vars). The defaults below reproduce the original bundled prismjs palettes
  * exactly (light: prism default; dark: okaidia), so this is a no-op until
  * presets seed --syntax-*. Backgrounds/structural colors stay app-native and
- * are intentionally not preset-driven. */
+ * are intentionally not preset-driven.
+ *
+ * Readability polish (2026-11-27, palette untouched): code line-height 1.6,
+ * tab-size 2 (narrow phone screens), rounded light code blocks, and a dark
+ * selection rule — the dark theme previously had none, so selected code fell
+ * back to the browser default. */
 
 .theme-light {
   /* Default syntax palette (prism default theme, @author Lea Verou). */
@@ -40,11 +45,11 @@
     word-spacing: normal;
     word-break: normal;
     word-wrap: normal;
-    line-height: 1.5;
+    line-height: 1.6;
 
-    -moz-tab-size: 4;
-    -o-tab-size: 4;
-    tab-size: 4;
+    -moz-tab-size: 2;
+    -o-tab-size: 2;
+    tab-size: 2;
 
     -webkit-hyphens: none;
     -moz-hyphens: none;
@@ -80,6 +85,7 @@
     padding: 1em;
     margin: 0.5em 0;
     overflow: auto;
+    border-radius: 0.3em;
   }
 
   :not(pre) > code[class*='language-'],
@@ -89,7 +95,7 @@
 
   /* Inline code */
   :not(pre) > code[class*='language-'] {
-    padding: 0.1em;
+    padding: 0.1em 0.3em;
     border-radius: 0.3em;
     white-space: normal;
   }
@@ -245,16 +251,36 @@
     word-spacing: normal;
     word-break: normal;
     word-wrap: normal;
-    line-height: 1.5;
+    line-height: 1.6;
 
-    -moz-tab-size: 4;
-    -o-tab-size: 4;
-    tab-size: 4;
+    -moz-tab-size: 2;
+    -o-tab-size: 2;
+    tab-size: 2;
 
     -webkit-hyphens: none;
     -moz-hyphens: none;
     -ms-hyphens: none;
     hyphens: none;
+  }
+
+  /* Dark had no selection rule: selected code fell back to the browser
+     default, which on the okaidia background is barely visible. Mirror
+     the light theme's rule, painted from the --bg-selection var this
+     file already defines for the dark theme below. */
+  pre[class*='language-']::-moz-selection,
+  pre[class*='language-'] ::-moz-selection,
+  code[class*='language-']::-moz-selection,
+  code[class*='language-'] ::-moz-selection {
+    text-shadow: none;
+    background: var(--bg-selection, #264f78);
+  }
+
+  pre[class*='language-']::selection,
+  pre[class*='language-'] ::selection,
+  code[class*='language-']::selection,
+  code[class*='language-'] ::selection {
+    text-shadow: none;
+    background: var(--bg-selection, #264f78);
   }
 
   /* Code blocks */
@@ -272,7 +298,7 @@
 
   /* Inline code */
   :not(pre) > code[class*='language-'] {
-    padding: 0.1em;
+    padding: 0.1em 0.3em;
     border-radius: 0.3em;
     white-space: normal;
   }
