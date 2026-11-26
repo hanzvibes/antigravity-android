@@ -11,6 +11,7 @@ if (!doc) return;
 
 installTaps(doc);
 installViewport(global, doc);
+installTabletScale(global, doc);
 installGpu(doc);
 
 global.__agWebOptimizations = { installed: true };
