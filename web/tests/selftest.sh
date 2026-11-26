@@ -36,4 +36,13 @@ for f in "$TMP"/web/generated/boot/*.js "$TMP"/web/generated/patches/*.js; do
     fi
 done
 
+# Android has no desktop sandboxing: no permission preset in the patched
+# bundle may enable it, or every first run_command fails with
+# "fork/exec .../libloader.so: invalid argument" (upstream #40/#41).
+if grep -Fq 'sandboxMode:!0' "$TMP/web/generated/main.js"; then
+    echo "generated main.js still enables desktop sandboxMode" >&2; exit 1
+fi
+
+python3 "$ROOT/web/tests/test_patch_main_sandbox.py"
+
 echo "web build selftest: OK"
