@@ -30,6 +30,7 @@ src/core/public-api.js
 bundle iife patches/web_optimizations.js
 src/patches/web_optimizations/taps.js
 src/patches/web_optimizations/viewport.js
+src/patches/web_optimizations/tablet-scale.js
 src/patches/web_optimizations/gpu.js
 src/patches/web_optimizations/public-api.js
 
