@@ -2,25 +2,42 @@
 """
 web/patch_main.py - Dynamic patcher for web/main.js.
 
-Locates the Appearance settings block and injects the Desktop Mode toggle
-if not already present. Safe, idempotent, and resilient to upstream changes.
+Applies two independent, idempotent patches to the staged upstream bundle:
+
+1. Desktop Mode toggle injection in the Appearance settings block.
+2. Android sandbox disable: the Default and Auto permission presets
+   (the ``W1a`` preset mapper in the minified bundle) set
+   ``sandboxMode: true``. On Android that makes the core's built-in Linux
+   sandbox re-exec ``/proc/self/exe`` -- which resolves to the glibc
+   loader (``libloader.so``, see ``RuntimeManager.coreCommand()``) -- with
+   Linux namespace/seccomp flags the Android kernel and SELinux reject
+   with ``EINVAL``. Every first ``run_command`` with the default presets
+   then fails with::
+
+       fork/exec .../libloader.so: invalid argument
+
+   and the agent has to retry with ``BypassSandbox: true``. Android is
+   already isolated by the Android Application Sandbox, and the seeded
+   agent rules (``modules/core/seed/AGENTS.md``) already forbid desktop
+   sandboxing, so the presets are flipped to ``sandboxMode: false`` here.
+   Only the flag is changed; the auto-execution policies are left alone.
+
+Safe, idempotent, and resilient to upstream changes. Fail-closed: if a
+patch pattern is not found exactly as expected, patching fails so the
+build stops instead of shipping a bundle that still breaks run_command.
 """
 
 import sys
 import os
 import re
 
-def patch_main(file_path):
-    if not os.path.isfile(file_path):
-        print(f"[web-patch] file not found: {file_path}", file=sys.stderr)
-        return False
+# --- Desktop Mode toggle -------------------------------------------------
 
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
+def _apply_desktop_mode_patch(content):
+    """Inject the Desktop Mode toggle; returns new content or None on failure."""
     if "Desktop Mode" in content or "ag_desktop_mode" in content:
         print("[web-patch] Desktop Mode toggle already present in main.js")
-        return True
+        return content
 
     # 1. State hook injection pattern in Appearance component:
     # Matches: var C=g!==3,D=g!==2,E=F=>G=>{F===t&&v(G)}; or legacy var B=f!==3,C=f!==2,D=E=>G=>{E===r&&u(G)};
@@ -45,7 +62,7 @@ def patch_main(file_path):
 
     if not hook_match or not theme_match:
         print(f"[web-patch] patterns not matched: hook={bool(hook_match)}, theme={bool(theme_match)}", file=sys.stderr)
-        return False
+        return None
 
     orig_hook = hook_match.group(1)
     injected_hook = (
@@ -82,10 +99,68 @@ def patch_main(file_path):
     content = content.replace(orig_hook, injected_hook, 1)
     content = content.replace(orig_theme, injected_theme, 1)
 
+    print("[web-patch] Successfully patched Desktop Mode toggle into main.js (mobile by default, English)")
+    return content
+
+
+# --- Android sandbox disable (run_command libloader.so EINVAL) -----------
+
+# The W1a preset mapper is the only place in the bundle that enables
+# desktop sandboxing: every other sandboxMode in the file is already
+# false/undefined. Anchors are kept short on purpose -- the minified
+# function name (W1a) changes between upstream versions, but the preset
+# names ("auto" / default) and the sandboxMode flag do not.
+_SANDBOX_AUTO_ON = 'case "auto":return{sandboxMode:!0'
+_SANDBOX_AUTO_OFF = 'case "auto":return{sandboxMode:!1'
+_SANDBOX_DEFAULT_ON = 'default:return{sandboxMode:!0'
+_SANDBOX_DEFAULT_OFF = 'default:return{sandboxMode:!1'
+
+
+def _apply_sandbox_patch(content):
+    """Flip Default/Auto presets to sandboxMode:false; new content or None."""
+    for on, off, name in (
+        (_SANDBOX_AUTO_ON, _SANDBOX_AUTO_OFF, '"auto" preset'),
+        (_SANDBOX_DEFAULT_ON, _SANDBOX_DEFAULT_OFF, 'default preset'),
+    ):
+        on_count = content.count(on)
+        off_count = content.count(off)
+        if on_count == 1 and off_count == 0:
+            content = content.replace(on, off, 1)
+            print(f"[web-patch] sandboxMode disabled for {name} (Android has no desktop sandboxing)")
+        elif on_count == 0 and off_count >= 1:
+            print(f"[web-patch] sandboxMode already disabled for {name}")
+        else:
+            print(
+                f"[web-patch] sandbox pattern ambiguous for {name}: "
+                f"on={on_count}, off={off_count} (expected exactly one of them)",
+                file=sys.stderr,
+            )
+            return None
+    return content
+
+
+def patch_main(file_path):
+    if not os.path.isfile(file_path):
+        print(f"[web-patch] file not found: {file_path}", file=sys.stderr)
+        return False
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # The two patches are independent: a bundle that already carries the
+    # Desktop Mode toggle must still get the sandbox fix (an earlier
+    # version returned early here and skipped it).
+    content = _apply_desktop_mode_patch(content)
+    if content is None:
+        return False
+    content = _apply_sandbox_patch(content)
+    if content is None:
+        return False
+
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
-    print("[web-patch] Successfully patched Desktop Mode toggle into main.js (mobile by default, English)")
+    print("[web-patch] main.js patched (Desktop Mode toggle + sandboxMode off for Default/Auto)")
     return True
 
 if __name__ == "__main__":
