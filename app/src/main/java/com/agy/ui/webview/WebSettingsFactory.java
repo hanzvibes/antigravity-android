@@ -70,7 +70,15 @@ public final class WebSettingsFactory {
             defaultUserAgent = settings.getUserAgentString();
         }
         settings.setUserAgentString(desktop ? DESKTOP_UA : defaultUserAgent);
-        settings.setUseWideViewPort(desktop);
-        settings.setLoadWithOverviewMode(desktop);
+        // The viewport meta tag must be honoured in normal mode too: the
+        // tablet-scale web patch narrows the layout viewport through the
+        // meta (width + initial-scale), and with useWideViewPort off the
+        // tag is ignored so the patch would silently do nothing. On phones
+        // the meta is width=device-width / initial-scale=1.0, so honouring
+        // it changes nothing there; overview mode only zooms out when the
+        // content is wider than the viewport, which the app layout is not.
+        // (Desktop Mode still only differs by the UA string.)
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
     }
 }

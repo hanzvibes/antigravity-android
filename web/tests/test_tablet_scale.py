@@ -2,15 +2,24 @@
 """Tests for the tablet UI scale fix (web_optimizations/tablet-scale.js).
 
 On tablets the phone-density web UI renders tiny (text, buttons,
-everything). A new fragment scales the whole layout with CSS `zoom` on
-the root element when the layout viewport is >= 600 CSS px, and skips
-Desktop Mode (which already scales via overview mode).
+everything). The fragment scales the whole layout by narrowing the
+layout viewport through the viewport meta tag
+(width=<deviceWidth / z>, initial-scale=<z>) when the device is >= 600
+CSS px wide, and skips Desktop Mode (which already scales via overview
+mode). It must NOT use CSS `zoom` on the root element: in this WebView
+root zoom magnifies from the top-left without shrinking the layout
+viewport, so centered content shifts right and the right side clips
+(the PR #6 bug: the welcome screen landed centered at ~60% instead
+of 50% on a 640px-wide tablet).
 
 Checks:
   1. Manifest order in the web_optimizations bundle.
-  2. The rebuilt generated bundle contains the fragment.
-  3. The node runtime test (test_tablet_scale.mjs) proves the zoom
-     steps, the Desktop Mode exclusion, and resize handling.
+  2. The fragment source uses the viewport meta, never root zoom.
+  3. The rebuilt generated bundle contains the fragment and no
+     root-zoom code.
+  4. The node runtime test (test_tablet_scale.mjs) proves the scale
+     steps, the Desktop Mode exclusion, resize handling (including no
+     oscillation when already scaled), and the missing-meta case.
 
 Run: python3 web/tests/test_tablet_scale.py
 (also driven by web/tests/selftest.sh)
@@ -46,6 +55,19 @@ class ManifestOrderTest(unittest.TestCase):
         self.assertEqual(lines, WEB_OPT_FRAGMENTS)
 
 
+class FragmentSourceTest(unittest.TestCase):
+    def test_viewport_meta_not_root_zoom(self):
+        with open(
+            os.path.join(WEB, "src", "patches", "web_optimizations", "tablet-scale.js")
+        ) as f:
+            src = f.read()
+        self.assertIn('meta[name="viewport"]', src)
+        self.assertIn("initial-scale=", src)
+        self.assertIn("maximum-scale=", src)
+        self.assertNotIn(".style.zoom", src, "root zoom must not come back")
+        self.assertNotIn("documentElement", src)
+
+
 class GeneratedBundleTest(unittest.TestCase):
     def test_rebuilt_bundle_contains_tablet_scale(self):
         tmp = tempfile.mkdtemp(prefix="agy-tablet-test.")
@@ -59,8 +81,9 @@ class GeneratedBundleTest(unittest.TestCase):
             )
             with open(os.path.join(tmp, "web", "generated", "patches", "web_optimizations.js")) as f:
                 bundle = f.read()
-            for marker in ["installTabletScale", "Antigravity/"]:
+            for marker in ["installTabletScale", "Antigravity/", "viewport"]:
                 self.assertIn(marker, bundle, "missing marker: %s" % marker)
+            self.assertNotIn(".style.zoom", bundle, "rebuilt bundle must not contain root zoom")
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
