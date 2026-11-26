@@ -15,6 +15,25 @@ public final class CoreEnvironment {
     private CoreEnvironment() {
     }
 
+    /**
+     * Selects $SHELL for the core. The runtime/bin bridge is a
+     * #!/system/bin/sh script that sets LD_LIBRARY_PATH="$PREFIX/lib" for
+     * the bionic child only and then execs the bundled Bash, so the linker
+     * finds libandroid-support.so. The prefix Bash must NOT be used
+     * directly: its RUNPATH points at the Termux package, and the core
+     * environment deliberately has no LD_LIBRARY_PATH (see below), so the
+     * linker fails and a new terminal dies with "Connection lost"
+     * (upstream #36). When no usable bridge exists, Android's own sh is
+     * the fallback. Package-private so unit tests can cover it without an
+     * Android runtime.
+     */
+    static String selectShell(File runtimeBash) {
+        if (runtimeBash != null && runtimeBash.isFile() && runtimeBash.canExecute()) {
+            return runtimeBash.getAbsolutePath();
+        }
+        return "/system/bin/sh";
+    }
+
     public static void apply(RuntimeManager rm, ProcessBuilder pb) {
         File files = rm.appContext().getFilesDir();
         File bin = rm.getBinDir();
@@ -32,18 +51,10 @@ public final class CoreEnvironment {
         env.put("PATH", bin.getAbsolutePath()
                 + (inheritedPath == null || inheritedPath.isEmpty() ? "" : ":" + inheritedPath));
         // The core's PTY spawner uses $SHELL (or falls back to /bin/bash, which
-        // does not exist on Android). Prefer the prefix bash, then the bridge in
-        // runtime/bin, then Android's own sh.
+        // does not exist on Android). The bridge sets the library path required
+        // by the bundled Bash.
         File prefix = new File(files, com.agy.install.EnvPaths.PREFIX_DIR);
-        File prefixBash = new File(prefix, com.agy.install.EnvPaths.BASH_REL);
-        File runtimeBash = new File(bin, "bash");
-        if (prefixBash.isFile() && prefixBash.canExecute()) {
-            env.put("SHELL", prefixBash.getAbsolutePath());
-        } else if (runtimeBash.isFile() && runtimeBash.canExecute()) {
-            env.put("SHELL", runtimeBash.getAbsolutePath());
-        } else {
-            env.put("SHELL", "/system/bin/sh");
-        }
+        env.put("SHELL", selectShell(new File(bin, "bash")));
         // PTY children need a terminal type, and the bootstrap prefix ships the
         // terminfo database that resolves it.
         env.put("TERM", "xterm-256color");
