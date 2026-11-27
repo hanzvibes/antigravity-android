@@ -36,11 +36,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 WEB = os.path.join(ROOT, "web")
 
 WEB_OPT_FRAGMENTS = [
-    "src/patches/web_optimizations/taps.js",
-    "src/patches/web_optimizations/viewport.js",
+    "src/patches/web_optimizations/bundle.js",
     "src/patches/web_optimizations/tablet-scale.js",
-    "src/patches/web_optimizations/gpu.js",
-    "src/patches/web_optimizations/public-api.js",
 ]
 
 
