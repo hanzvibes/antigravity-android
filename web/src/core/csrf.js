@@ -3,10 +3,18 @@
  *
  * Sources (first hit wins): explicit global, meta tag, generated fallback.
  * Publishes `csrfToken`/`csrf_token` cookies that main.js and native read.
+ *
+ * The cookie writes are cached: syncCsrf() runs on every RPC (see
+ * endpoints.js), so writing both cookies unconditionally on each call
+ * is redundant once the token is stable. lastSyncedCookieToken skips
+ * the writes when the token has not changed (upstream PR #34).
  */
+var lastSyncedCookieToken = null;
+
 function readCsrf() {
   try {
     if (window.__AG_CSRF__) return String(window.__AG_CSRF__);
+    if (CONFIG.csrfToken) return String(CONFIG.csrfToken);
     var m = document.querySelector('meta[name="csrf-token"], meta[name="csrfToken"]');
     if (m && m.getAttribute('content')) return m.getAttribute('content');
   } catch (e) {}
@@ -17,12 +25,15 @@ function syncCsrf() {
   var token = readCsrf();
   CONFIG.csrfToken = token;
   CONFIG.csrf_token = token;
-  try {
-    if (document && document.cookie !== undefined) {
-      document.cookie = 'csrfToken=' + token + '; path=/; SameSite=Lax';
-      document.cookie = 'csrf_token=' + token + '; path=/; SameSite=Lax';
-    }
-  } catch (e) {}
+  if (token !== lastSyncedCookieToken) {
+    try {
+      if (document && document.cookie !== undefined) {
+        document.cookie = 'csrfToken=' + token + '; path=/; SameSite=Lax';
+        document.cookie = 'csrf_token=' + token + '; path=/; SameSite=Lax';
+        lastSyncedCookieToken = token;
+      }
+    } catch (e) {}
+  }
   return token;
 }
 
