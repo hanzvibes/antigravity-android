@@ -47,5 +47,6 @@ python3 "$ROOT/web/tests/test_patch_main_sandbox.py"
 python3 "$ROOT/web/tests/test_stream_recovery.py"
 python3 "$ROOT/web/tests/test_code_readability.py"
 python3 "$ROOT/web/tests/test_tablet_scale.py"
+python3 "$ROOT/web/tests/test_perf_patch.py"
 
 echo "web build selftest: OK"
