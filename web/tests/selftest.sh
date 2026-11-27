@@ -49,5 +49,6 @@ python3 "$ROOT/web/tests/test_code_readability.py"
 python3 "$ROOT/web/tests/test_tablet_scale.py"
 python3 "$ROOT/web/tests/test_perf_patch.py"
 python3 "$ROOT/web/tests/test_csrf_cache.py"
+python3 "$ROOT/web/tests/test_web_optimizations_bundle.py"
 
 echo "web build selftest: OK"

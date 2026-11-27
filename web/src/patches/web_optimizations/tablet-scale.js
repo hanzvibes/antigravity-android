@@ -112,3 +112,8 @@ function installTabletScale(global, doc) {
     } catch (e) {}
   } catch (e) {}
 }
+
+// Self-install: bundle.js (upstream PR #34) replaced public-api.js,
+// which used to call installTabletScale(). Install directly so the
+// tablet scale still applies when this fragment loads.
+try { installTabletScale(window, window.document); } catch (e) {}
