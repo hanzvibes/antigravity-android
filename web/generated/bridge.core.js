@@ -16,7 +16,7 @@ if (window.__AG_BRIDGE_CORE__) return;
 window.__AG_BRIDGE_CORE__ = true;
 
 var global = window;
-var VERSION = '1.0.0';
+var VERSION = '1.2.1';
 
 // Live config: filled by config.js, then kept in sync by csrf.js/endpoints.js.
 var CONFIG = window.__APP_CONFIG__ || {};
@@ -639,12 +639,14 @@ var api = {
   setEndpoint: setEndpoint,
   baseOrigin: baseOrigin,
   syncCsrf: syncCsrf,
-  parseEndpointSpec: parseEndpointSpec
+  parseEndpointSpec: parseEndpointSpec,
+  triggerStreamRecovery: triggerStreamRecovery,
+  getActiveStreamCount: function () { return activeStreamClosers.size; }
 };
 
 window.__agBridgeCore = api;
 
-try { console.log('[AGY bridge.core] ready (endpoints: ' + Object.keys(ENDPOINTS).length + ')'); } catch (e) {}
+try { console.log('[AGY bridge.core] v' + VERSION + ' ready (loopback stream recovery + online shim active)'); } catch (e) {}
 
 
 })();
