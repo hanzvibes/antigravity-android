@@ -162,11 +162,37 @@ function registerRow(row) {
  * patches/touch_model_menu/scan.js - debounced DOM scan for effort groups.
  */
 
-// Trailing debounce: DOM mutates constantly while a reply streams. A rAF scan
-// would run at screen refresh (60-120 Hz); coalesce to one pass.
-var SCAN_DEBOUNCE_MS = 180;
+var SCAN_DEBOUNCE_MS = 80;
+
+function isPanelOpen() {
+  try {
+    return !!document.querySelector(CONFIG.panel);
+  } catch (_) {
+    return false;
+  }
+}
+
+function disconnectObserver() {
+  if (state.observer) {
+    try { state.observer.disconnect(); } catch (_) {}
+  }
+}
+
+function enhanceGroup(group) {
+  // Fork repair: upstream PR #34's scan() calls enhanceGroup(), but the
+  // function exists nowhere in the repo (register.js only defines
+  // registerRow). This is the old scan() inline logic, kept verbatim:
+  // resolve the menuitem row for the effort group, then register it.
+  var row = (group.closest && group.closest(CONFIG.menuItemRole)) || group.parentElement || group;
+  registerRow(row);
+}
 
 function scan() {
+  if (!isPanelOpen()) {
+    state.groups = 0;
+    disconnectObserver();
+    return;
+  }
   var groups = [];
   try {
     groups = document.querySelectorAll(CONFIG.effortGroup);
@@ -175,41 +201,64 @@ function scan() {
   }
   state.groups = groups.length;
   for (var i = 0; i < groups.length; i++) {
-    var group = groups[i];
-    var row = (group.closest && group.closest(CONFIG.menuItemRole)) || group.parentElement || group;
-    registerRow(row);
+    enhanceGroup(groups[i]);
   }
 }
 
 function scheduleScan() {
-  if (state.scanTimer) return;
-  state.scanTimer = setTimeout(function () {
-    state.scanTimer = 0;
+  if (state.debounceTimer) clearTimeout(state.debounceTimer);
+  state.debounceTimer = setTimeout(function () {
+    state.debounceTimer = null;
     scan();
   }, SCAN_DEBOUNCE_MS);
 }
 
+function armPanelObserver() {
+  var root = document.querySelector(CONFIG.root) || document.body || document.documentElement;
+  if (window.MutationObserver && root) {
+    if (!state.observer) {
+      state.observer = new MutationObserver(scheduleScan);
+    }
+    try {
+      state.observer.observe(root, { childList: true, subtree: true });
+    } catch (_) {}
+  }
+  setTimeout(scan, 16);
+  setTimeout(scan, 80);
+  setTimeout(scan, 200);
+}
+
 /**
- * patches/touch_model_menu/install.js - arm the observer on touch devices.
+ * patches/touch_model_menu/install.js - arm on-demand when model selector opens.
  */
 function install() {
   if (state.installed) return;
+  // Fork repair: upstream PR #34 dropped this line, but nothing else
+  // ever sets state.hasTouch (state.js defaults it to false), so the
+  // `if (!state.hasTouch)` guard below would make install() a
+  // permanent no-op. Restore the touch detection.
   state.hasTouch = detectTouch();
+  if (!document || !document.addEventListener) return;
   state.installed = true;
 
   if (!state.hasTouch) {
-    console.log('[agTouchModelMenu] no touch input detected; patch is a no-op.');
     return;
   }
 
-  scan();
+  var onInteract = function (ev) {
+    var t = ev && ev.target;
+    if (!t || !t.closest) return;
+    if (t.closest(CONFIG.trigger) || t.closest(CONFIG.panel) || isPanelOpen()) {
+      armPanelObserver();
+    }
+  };
 
-  var root = document.querySelector(CONFIG.root) || document.body || document.documentElement;
-  if (window.MutationObserver && root) {
-    state.observer = new MutationObserver(scheduleScan);
-    state.observer.observe(root, { childList: true, subtree: true });
+  document.addEventListener('pointerdown', onInteract, { capture: true, passive: true });
+  document.addEventListener('click', onInteract, { capture: true, passive: true });
+
+  if (isPanelOpen()) {
+    armPanelObserver();
   }
-  console.log('[agTouchModelMenu] active (rows=' + state.rows + ').');
 }
 
 /**
