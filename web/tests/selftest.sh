@@ -52,5 +52,6 @@ python3 "$ROOT/web/tests/test_csrf_cache.py"
 python3 "$ROOT/web/tests/test_web_optimizations_bundle.py"
 python3 "$ROOT/web/tests/test_theme_sync_touch_menu.py"
 python3 "$ROOT/web/tests/test_startup_ready.py"
+python3 "$ROOT/web/tests/test_core_polish.py"
 
 echo "web build selftest: OK"
